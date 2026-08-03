@@ -8,15 +8,14 @@ import {
   Video, 
   Users, 
   Settings,
-  ExternalLink,
-  Search,
-  Bell
+  Globe,
+  Rocket
 } from 'lucide-react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'JRPCo Prime - Team Task Management',
-  description: 'Team Task Management System 2026',
+  title: 'TEAM TASK MANAGEMENT SYSTEM',
+  description: 'Team Task Management System',
 };
 
 export default function RootLayout({
@@ -29,70 +28,63 @@ export default function RootLayout({
       <body>
         <div className="app-layout">
           {/* Sidebar */}
-          <aside className="sidebar neu-card">
+          <aside className="sidebar">
             <div className="sidebar-header">
               <div className="logo-container">
                 <div className="logo-icon">J</div>
-                <h2>JRPCo Prime</h2>
+                <div className="logo-text">
+                  Team Task<br/>Management<br/>System
+                </div>
               </div>
-              <p className="caption text-secondary">Team Task Management System 2026</p>
-              <p className="caption text-secondary" style={{ marginTop: '8px' }}>Simplifying teamwork, one task at a time.</p>
             </div>
 
+            <div className="sidebar-section-title">Menu</div>
             <nav className="sidebar-nav">
-              <Link href="/" className="neu-button primary nav-link active">
-                <LayoutDashboard size={20} /> Dashboard
+              <Link href="/" className="nav-link active">
+                <LayoutDashboard size={18} /> Dashboard
               </Link>
-              <Link href="/tasks" className="neu-button nav-link">
-                <ListTodo size={20} /> Tasks Board
+              <Link href="/tasks" className="nav-link">
+                <ListTodo size={18} /> Tasks Board
               </Link>
-              <Link href="/gantt" className="neu-button nav-link">
-                <BarChart size={20} /> Gantt Chart
+              <Link href="/gantt" className="nav-link">
+                <BarChart size={18} /> Gantt Chart
               </Link>
-              <Link href="/kanban" className="neu-button nav-link">
-                <KanbanSquare size={20} /> Kanban Board
+              <Link href="/kanban" className="nav-link">
+                <KanbanSquare size={18} /> Kanban Board
               </Link>
-              <Link href="/meetings" className="neu-button nav-link">
-                <Video size={20} /> Meetings
+              <Link href="/meetings" className="nav-link">
+                <Video size={18} /> Meetings
               </Link>
-              <Link href="/team" className="neu-button nav-link">
-                <Users size={20} /> Team Data
-              </Link>
-              <Link href="/settings" className="neu-button nav-link">
-                <Settings size={20} /> Settings
+              <Link href="/team" className="nav-link">
+                <Users size={18} /> Team Data
               </Link>
             </nav>
 
-            <div className="sidebar-footer">
-              <Link href="#" className="neu-button nav-link" style={{ marginBottom: '16px' }}>
-                <ExternalLink size={20} /> Visit Website
+            <div className="sidebar-section-title">Help</div>
+            <nav className="sidebar-nav">
+              <Link href="/settings" className="nav-link">
+                <Settings size={18} /> Settings
               </Link>
-              <div className="neu-card" style={{ padding: '16px', textAlign: 'center' }}>
-                <h4 style={{ marginBottom: '8px' }}>Advance Daily</h4>
-                <p className="caption text-secondary" style={{ marginBottom: '16px' }}>Unlock more features</p>
-                <button className="neu-button primary" style={{ width: '100%' }}>Upgrade</button>
-              </div>
-            </div>
+              <Link href="#" className="nav-link">
+                <Globe size={18} /> Visit Website
+              </Link>
+              <Link href="#" className="nav-link">
+                <Rocket size={18} /> Advance Daily
+              </Link>
+            </nav>
           </aside>
 
           {/* Main Content */}
           <main className="main-content">
             <header className="top-bar">
-              <div>
-                <h2 style={{ margin: 0 }}>Current Date: June 05, 2024</h2>
-                <p className="text-secondary">Current Tasks: 32 Done</p>
-              </div>
+              <h1>TEAM TASK MANAGEMENT SYSTEM</h1>
               <div className="top-bar-actions">
-                <div className="search-bar">
-                  <Search size={20} className="text-secondary" />
-                  <input type="text" placeholder="Search..." style={{ border: 'none', background: 'transparent', width: '100%' }} />
-                </div>
-                <button className="neu-button icon-btn">
-                  <Bell size={20} />
-                </button>
-                <div className="profile-pic">
-                  <img src="https://i.pravatar.cc/150?img=68" alt="Profile" />
-                </div>
+                <button className="neu-button" style={{ minWidth: '100px' }}>January</button>
+                <select className="neu-select" defaultValue="2024" style={{ minWidth: '100px' }}>
+                  <option value="2024">2024</option>
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
               </div>
             </header>
             

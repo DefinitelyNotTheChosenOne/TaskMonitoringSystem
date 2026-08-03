@@ -1,42 +1,53 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
-  BarChart, Bar
+  LineChart, Line, XAxis, YAxis, ResponsiveContainer,
+  BarChart, Bar, Legend
 } from 'recharts';
-import { ChevronDown, MoreHorizontal } from 'lucide-react';
 
 const priorityData = [
-  { name: 'High', value: 30, color: '#FF6B6B' },
-  { name: 'Medium', value: 50, color: 'var(--accent)' },
-  { name: 'Low', value: 20, color: '#4ECDC4' },
+  { name: 'Low', value: 20, color: 'var(--chart-1)' },
+  { name: 'Medium', value: 30, color: 'var(--chart-2)' },
+  { name: 'High', value: 35, color: 'var(--chart-3)' },
+  { name: 'Critical', value: 10, color: 'var(--chart-4)' },
+  { name: 'Very High', value: 5, color: 'var(--chart-5)' },
+];
+
+const statusData = [
+  { name: 'Not Started', tasks: 15 },
+  { name: 'In Progress', tasks: 24 },
+  { name: 'On Hold', tasks: 5 },
+  { name: 'Active', tasks: 12 },
+  { name: 'In Review', tasks: 8 },
+  { name: 'Completed', tasks: 32 },
+  { name: 'Overdue', tasks: 5 },
+  { name: 'Cancelled', tasks: 2 },
 ];
 
 const currentPerformanceData = [
-  { day: 'Mon', tasks: 12 },
-  { day: 'Tue', tasks: 19 },
-  { day: 'Wed', tasks: 15 },
-  { day: 'Thu', tasks: 22 },
-  { day: 'Fri', tasks: 28 },
-  { day: 'Sat', tasks: 10 },
-  { day: 'Sun', tasks: 14 },
+  { day: '28', tasks: 12 }, { day: '29', tasks: 19 },
+  { day: '30', tasks: 15 }, { day: '31', tasks: 22 },
+  { day: '01', tasks: 28 }, { day: '02', tasks: 10 },
+  { day: '03', tasks: 14 },
 ];
 
 const departmentData = [
-  { name: 'Marketing', tasks: 45 },
-  { name: 'Engineering', tasks: 80 },
-  { name: 'Sales', tasks: 35 },
-  { name: 'HR', tasks: 20 },
-  { name: 'Design', tasks: 50 },
+  { name: 'Admin', completed: 45, notCompleted: 10 },
+  { name: 'Production', completed: 80, notCompleted: 20 },
+  { name: 'Marketing', completed: 35, notCompleted: 15 },
+  { name: 'Operations', completed: 20, notCompleted: 5 },
+  { name: 'Finance', completed: 50, notCompleted: 10 },
 ];
 
 const categoryData = [
-  { name: 'Bug Fixes', tasks: 60 },
-  { name: 'Features', tasks: 85 },
-  { name: 'Maintenance', tasks: 40 },
-  { name: 'Meetings', tasks: 25 },
+  { name: 'Project', completed: 60, notCompleted: 10 },
+  { name: 'Design', completed: 85, notCompleted: 20 },
+  { name: 'Meeting', completed: 40, notCompleted: 10 },
+  { name: 'Development', completed: 25, notCompleted: 5 },
+  { name: 'Client Work', completed: 55, notCompleted: 15 },
+  { name: 'Support', completed: 30, notCompleted: 5 },
 ];
 
 const monthlyData = Array.from({ length: 31 }, (_, i) => ({
@@ -45,128 +56,83 @@ const monthlyData = Array.from({ length: 31 }, (_, i) => ({
 }));
 
 const yearlyData = [
-  { month: 'Jan', tasks: 120 }, { month: 'Feb', tasks: 150 },
-  { month: 'Mar', tasks: 180 }, { month: 'Apr', tasks: 140 },
-  { month: 'May', tasks: 200 }, { month: 'Jun', tasks: 170 },
-  { month: 'Jul', tasks: 220 }, { month: 'Aug', tasks: 210 },
-  { month: 'Sep', tasks: 190 }, { month: 'Oct', tasks: 230 },
-  { month: 'Nov', tasks: 250 }, { month: 'Dec', tasks: 280 },
+  { month: 'January', tasks: 120 }, { month: 'February', tasks: 150 },
+  { month: 'March', tasks: 180 }, { month: 'April', tasks: 140 },
+  { month: 'May', tasks: 200 }, { month: 'June', tasks: 170 },
+  { month: 'July', tasks: 220 }, { month: 'August', tasks: 210 },
+  { month: 'September', tasks: 190 }, { month: 'October', tasks: 230 },
+  { month: 'November', tasks: 250 }, { month: 'December', tasks: 280 },
 ];
 
 export default function Home() {
+  const [activeChart, setActiveChart] = useState<'department' | 'category'>('department');
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: '24px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(460px, 2.2fr) minmax(400px, 1.8fr) minmax(300px, 1.5fr)', gap: '24px' }}>
       
-      {/* Column 1 */}
+      {/* Column 1 & 2 Combined */}
       <div className="flex-column" style={{ gap: '24px' }}>
-        <div className="neu-card" style={{ height: '320px', display: 'flex', flexDirection: 'column' }}>
-          <div className="flex-between" style={{ marginBottom: '16px' }}>
-            <h3>Tasks By Priority Level</h3>
-            <MoreHorizontal className="text-secondary" size={20} />
-          </div>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={priorityData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={5}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {priorityData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'var(--bg)', 
-                    borderRadius: 'var(--radius-sm)',
-                    border: 'none',
-                    boxShadow: 'var(--shadow-extrude)'
-                  }} 
-                  itemStyle={{ color: 'var(--text-primary)' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center Label */}
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>100%</div>
-              <div className="caption text-secondary">Total</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '24px' }}>
+          {/* Company Information & Mission */}
+          <div className="neu-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <h3 className="card-title" style={{ width: '100%' }}>Company Information</h3>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'var(--bg)', boxShadow: 'var(--shadow-extrude)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Company<br/>Logo</span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>Company Name</h2>
+                <p className="text-secondary">Company Tagline</p>
+              </div>
+            </div>
+            <div style={{ width: '100%', marginTop: '24px' }}>
+              <h3 className="card-title" style={{ fontSize: '14px', marginBottom: '8px' }}>Mission</h3>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg)', boxShadow: 'var(--shadow-inset)', borderRadius: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                To deliver high-quality, innovative solutions that empower teams to collaborate efficiently and stay organized every single day.
+              </div>
             </div>
           </div>
-          <div className="flex-between" style={{ marginTop: '16px' }}>
-            {priorityData.map(item => (
-              <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: item.color }} />
-                <span className="caption text-secondary">{item.name}</span>
+
+          {/* Tasks By Priority Level */}
+          <div className="neu-card" style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 className="card-title">Tasks By Priority Level</h3>
+            <div style={{ flex: 1, position: 'relative', minHeight: '280px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={priorityData}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {priorityData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                  <Legend iconType="square" layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>100%</div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
-        <div className="neu-card" style={{ height: '380px', display: 'flex', flexDirection: 'column' }}>
-          <div className="flex-between" style={{ marginBottom: '16px' }}>
-            <h3>Tasks By Department</h3>
-            <MoreHorizontal className="text-secondary" size={20} />
-          </div>
-          <div style={{ flex: 1 }}>
+        {/* Tasks By Status (Now spanning full width) */}
+        <div className="neu-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <h3 className="card-title">Tasks By Status</h3>
+          <div style={{ flex: 1, minHeight: '280px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={departmentData} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+              <BarChart data={statusData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} width={80} />
-                <RechartsTooltip 
-                  cursor={{ fill: 'transparent' }}
-                  contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: 'none', boxShadow: 'var(--shadow-extrude)' }}
-                />
-                <Bar dataKey="tasks" fill="var(--accent)" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Column 2 */}
-      <div className="flex-column" style={{ gap: '24px' }}>
-        <div className="neu-card" style={{ height: '320px', display: 'flex', flexDirection: 'column' }}>
-          <div className="flex-between" style={{ marginBottom: '16px' }}>
-            <h3>Current Performance (Last 7 Days)</h3>
-            <MoreHorizontal className="text-secondary" size={20} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={currentPerformanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--dark)" opacity={0.3} />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: 'none', boxShadow: 'var(--shadow-extrude)' }}
-                />
-                <Line type="monotone" dataKey="tasks" stroke="var(--accent)" strokeWidth={3} dot={{ fill: 'var(--accent)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="neu-card" style={{ height: '380px', display: 'flex', flexDirection: 'column' }}>
-          <div className="flex-between" style={{ marginBottom: '16px' }}>
-            <h3>Tasks By Category</h3>
-            <MoreHorizontal className="text-secondary" size={20} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--dark)" opacity={0.3} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
-                <RechartsTooltip 
-                  cursor={{ fill: 'transparent' }}
-                  contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: 'none', boxShadow: 'var(--shadow-extrude)' }}
-                />
-                <Bar dataKey="tasks" fill="var(--accent)" radius={[4, 4, 0, 0]} barSize={40} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} width={80} />
+                <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                <Bar dataKey="tasks" fill="var(--chart-4)" barSize={12} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -175,51 +141,130 @@ export default function Home() {
 
       {/* Column 3 */}
       <div className="flex-column" style={{ gap: '24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-          {/* Status Cards */}
-          <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="caption text-secondary" style={{ marginBottom: '8px' }}>Overdue</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF6B6B' }}>5</div>
-          </div>
-          <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="caption text-secondary" style={{ marginBottom: '8px' }}>Ongoing</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--accent)' }}>24</div>
-          </div>
-          <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="caption text-secondary" style={{ marginBottom: '8px' }}>Upcoming</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4ECDC4' }}>12</div>
-          </div>
-        </div>
-
-        <div className="neu-card flex-between" style={{ padding: '12px 24px', cursor: 'pointer' }}>
-          <span style={{ fontWeight: 600 }}>January, 2024</span>
-          <ChevronDown size={20} className="text-secondary" />
-        </div>
-
-        <div className="neu-card" style={{ height: '260px', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ marginBottom: '16px' }}>Monthly Performance (Task Completion)</h3>
+        <div className="neu-card" style={{ height: '240px', display: 'flex', flexDirection: 'column' }}>
+          <h3 className="card-title">Current Performance (Last 7 Days)</h3>
           <div style={{ flex: 1 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyData}>
-                <Line type="monotone" dataKey="tasks" stroke="var(--accent)" strokeWidth={2} dot={false} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: 'none', boxShadow: 'var(--shadow-extrude)' }}
-                />
+              <LineChart data={currentPerformanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} dy={5} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                <Line type="monotone" dataKey="tasks" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="neu-card" style={{ height: '260px', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ marginBottom: '16px' }}>Yearly Performance (Task Completion)</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
+            <h3 className="card-title" style={{ textAlign: 'center', marginBottom: '8px' }}>Overdue</h3>
+            <div className="kpi-sub-card">
+              <div className="kpi-number">00</div>
+              <div className="caption text-secondary" style={{ textAlign: 'center' }}>Last Week<br/>(Mon-Sun)</div>
+            </div>
+          </div>
+          <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
+            <h3 className="card-title" style={{ textAlign: 'center', marginBottom: '8px' }}>Ongoing</h3>
+            <div className="kpi-sub-card">
+              <div className="kpi-number">00</div>
+              <div className="caption text-secondary" style={{ textAlign: 'center' }}>This Week<br/>(Mon-Sun)</div>
+            </div>
+          </div>
+          <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
+            <h3 className="card-title" style={{ textAlign: 'center', marginBottom: '8px' }}>Upcoming</h3>
+            <div className="kpi-sub-card">
+              <div className="kpi-number">00</div>
+              <div className="caption text-secondary" style={{ textAlign: 'center' }}>Next Week<br/>(Mon-Sun)</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="neu-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div className="flex-between" style={{ marginBottom: '16px' }}>
+            <h3 className="card-title" style={{ margin: 0 }}>Tasks By {activeChart === 'department' ? 'Department' : 'Category'}</h3>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="neu-button" 
+                style={{ padding: '4px 12px', fontSize: '12px', borderColor: activeChart === 'department' ? 'var(--accent)' : 'transparent', color: activeChart === 'department' ? 'var(--accent)' : 'var(--text-secondary)', boxShadow: activeChart === 'department' ? 'var(--shadow-inset)' : 'var(--shadow-extrude)' }}
+                onClick={() => setActiveChart('department')}
+              >
+                Department
+              </button>
+              <button 
+                className="neu-button" 
+                style={{ padding: '4px 12px', fontSize: '12px', borderColor: activeChart === 'category' ? 'var(--accent)' : 'transparent', color: activeChart === 'category' ? 'var(--accent)' : 'var(--text-secondary)', boxShadow: activeChart === 'category' ? 'var(--shadow-inset)' : 'var(--shadow-extrude)' }}
+                onClick={() => setActiveChart('category')}
+              >
+                Category
+              </button>
+            </div>
+          </div>
           <div style={{ flex: 1 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={yearlyData}>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} dy={5} />
-                <Line type="monotone" dataKey="tasks" stroke="#4ECDC4" strokeWidth={2} dot={false} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: 'none', boxShadow: 'var(--shadow-extrude)' }}
-                />
+              {activeChart === 'department' ? (
+                <BarChart data={departmentData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} width={75} />
+                  <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                  <Legend iconType="square" verticalAlign="top" align="right" wrapperStyle={{ fontSize: '10px', color: 'var(--text-secondary)' }} />
+                  <Bar dataKey="completed" name="Completed" fill="var(--accent)" barSize={8} />
+                  <Bar dataKey="notCompleted" name="Not Completed" fill="var(--chart-2)" barSize={8} />
+                </BarChart>
+              ) : (
+                <BarChart data={categoryData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} width={75} />
+                  <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                  <Legend iconType="square" verticalAlign="top" align="right" wrapperStyle={{ fontSize: '10px', color: 'var(--text-secondary)' }} />
+                  <Bar dataKey="completed" name="Completed" fill="var(--accent)" barSize={8} />
+                  <Bar dataKey="notCompleted" name="Not Completed" fill="var(--chart-2)" barSize={8} />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Column 4 */}
+      <div className="flex-column" style={{ gap: '24px' }}>
+        <div className="neu-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <h3 className="card-title" style={{ width: '100%', marginBottom: '16px' }}>Current Date</h3>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700 }}>03 Aug 2026</div>
+            <div className="text-secondary" style={{ fontSize: '14px' }}>Monday</div>
+          </div>
+        </div>
+        <div className="neu-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <h3 className="card-title" style={{ width: '100%', marginBottom: '16px' }}>Current Tasks</h3>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700 }}>#DIV/0!</div>
+            <div className="caption text-secondary">Done</div>
+          </div>
+        </div>
+
+        <div className="neu-card" style={{ height: '240px', display: 'flex', flexDirection: 'column' }}>
+          <h3 className="card-title">Monthly Performance (Task Completion)</h3>
+          <div style={{ flex: 1 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 9 }} dy={5} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                <Line type="monotone" dataKey="tasks" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--bg)', stroke: 'var(--accent)', r: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="neu-card" style={{ height: '300px', display: 'flex', flexDirection: 'column' }}>
+          <h3 className="card-title">Yearly Performance (Task Completion)</h3>
+          <div style={{ flex: 1 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={yearlyData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10, angle: -45, textAnchor: 'end' }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-extrude)' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                <Line type="monotone" dataKey="tasks" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--bg)', stroke: 'var(--accent)', r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
