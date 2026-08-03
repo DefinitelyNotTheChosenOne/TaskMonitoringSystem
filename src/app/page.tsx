@@ -8,11 +8,11 @@ import {
 } from 'recharts';
 
 const priorityData = [
-  { name: 'Low', value: 20, color: 'var(--chart-1)' },
-  { name: 'Medium', value: 30, color: 'var(--chart-2)' },
-  { name: 'High', value: 35, color: 'var(--chart-3)' },
-  { name: 'Critical', value: 10, color: 'var(--chart-4)' },
-  { name: 'Very High', value: 5, color: 'var(--chart-5)' },
+  { name: 'Low', value: 20, color: '#10b981' }, // Green
+  { name: 'Medium', value: 30, color: '#3b82f6' }, // Blue
+  { name: 'High', value: 35, color: '#f59e0b' }, // Amber
+  { name: 'Very High', value: 5, color: '#f97316' }, // Orange
+  { name: 'Critical', value: 10, color: '#ef4444' }, // Red
 ];
 
 const statusData = [

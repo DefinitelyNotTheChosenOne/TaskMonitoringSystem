@@ -46,27 +46,31 @@ export default function TasksBoard() {
             </div>
             
             <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Tasks Due Today by Priority</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-primary)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <span><span style={{ color: 'var(--chart-4)', fontWeight: 600 }}>C:</span> 2</span>
-                <span><span style={{ color: 'var(--chart-5)', fontWeight: 600 }}>VH:</span> 1</span>
-                <span><span style={{ color: 'var(--chart-3)', fontWeight: 600 }}>H:</span> 4</span>
-                <span><span style={{ color: 'var(--chart-2)', fontWeight: 600 }}>M:</span> 3</span>
-                <span><span style={{ color: 'var(--chart-1)', fontWeight: 600 }}>L:</span> 2</span>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Tasks Due Today by Priority</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>Critical: 2</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(249, 115, 22, 0.1)', color: '#f97316' }}>V. High: 1</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>High: 4</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>Medium: 3</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>Low: 2</span>
               </div>
             </div>
             
             <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Tasks Due Today by Status</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-primary)', display: 'flex', gap: '8px' }}>
-                <span>WIP: 5</span> | <span>Review: 4</span> | <span>Done: 3</span>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Tasks Due Today by Status</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)' }}>WIP: 5</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)' }}>Review: 4</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>Done: 3</span>
               </div>
             </div>
             
             <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Distribution by Category</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-primary)', display: 'flex', gap: '8px' }}>
-                <span>Design: 4</span> | <span>Dev: 6</span> | <span>QA: 2</span>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Distribution by Category</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(91, 124, 250, 0.1)', color: 'var(--accent)' }}>Design: 4</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(91, 124, 250, 0.1)', color: 'var(--accent)' }}>Dev: 6</span>
+                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(91, 124, 250, 0.1)', color: 'var(--accent)' }}>QA: 2</span>
               </div>
             </div>
             
