@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Sidebar from '@/components/Sidebar';
 import PageAnimator from '@/components/PageAnimator';
+import PageHeader from '@/components/PageHeader';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default function RootLayout({
           {/* Main Content */}
           <main className="main-content">
             <header className="top-bar">
-              <h1>TEAM TASK MANAGEMENT SYSTEM</h1>
+              <PageHeader />
               <div className="top-bar-actions">
                 <button className="neu-button" style={{ minWidth: '100px' }}>January</button>
                 <select className="neu-select" defaultValue="2024" style={{ minWidth: '100px' }}>
