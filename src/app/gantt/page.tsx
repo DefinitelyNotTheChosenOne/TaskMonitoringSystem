@@ -22,7 +22,7 @@ export default function GanttChart() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '20px' }}>
+        <div className="gantt-summary-row">
           <div className="neu-card flex-column" style={{ gap: '4px', flex: 1 }}>
             <span className="text-secondary" style={{ fontSize: '14px' }}>Date Today</span>
             <span style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: 'bold' }}>August 07, 2026</span>

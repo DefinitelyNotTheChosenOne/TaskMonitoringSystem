@@ -48,7 +48,7 @@ export default function KanbanBoard() {
           const columnTasks = mockTasks.filter((task) => task.status === columnStatus);
 
           return (
-            <div key={columnStatus} style={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-lg)', minWidth: '320px', width: '320px', display: 'flex', flexDirection: 'column', padding: '16px', boxShadow: 'var(--shadow-inset)', gap: '16px' }}>
+            <div key={columnStatus} style={{ backgroundColor: 'var(--bg)', borderRadius: 'var(--radius-lg)', minWidth: '280px', width: '300px', display: 'flex', flexDirection: 'column', padding: '16px', boxShadow: 'var(--shadow-inset)', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '2px solid var(--accent)' }}>
                 <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{columnStatus}</h2>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', backgroundColor: 'var(--bg)', padding: '4px 10px', borderRadius: '12px', boxShadow: 'var(--shadow-extrude)' }}>

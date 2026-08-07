@@ -68,11 +68,11 @@ export default function Home() {
   const [activeChart, setActiveChart] = useState<'department' | 'category'>('department');
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(460px, 2.2fr) minmax(400px, 1.8fr) minmax(300px, 1.5fr)', gap: '24px' }}>
+    <div className="dashboard-grid">
       
       {/* Column 1 & 2 Combined */}
       <div className="flex-column" style={{ gap: '24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '24px' }}>
+        <div className="dashboard-inner-grid">
           {/* Company Information & Mission */}
           <div className="neu-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h3 className="card-title" style={{ width: '100%' }}>Company Information</h3>
@@ -155,7 +155,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div className="dashboard-kpi-row">
           <div className="neu-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
             <h3 className="card-title" style={{ textAlign: 'center', marginBottom: '8px' }}>Overdue</h3>
             <div className="kpi-sub-card">

@@ -73,7 +73,7 @@ export default function MeetingArchive() {
           <div key={meeting.id} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
             {/* Top Split Panel (Metadata vs Logistics) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+            <div className="meetings-split-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
               
               {/* Left Side: Metadata fields */}
               <div className="neu-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -118,7 +118,7 @@ export default function MeetingArchive() {
             </div>
 
             {/* Middle Split Panel (Minutes vs Agenda) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+            <div className="meetings-split-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
               
               {/* Left Side: Minutes of the Meeting */}
               <div className="neu-card" style={{ display: 'flex', flexDirection: 'column' }}>

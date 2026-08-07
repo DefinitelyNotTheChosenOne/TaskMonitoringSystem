@@ -456,3 +456,225 @@ small, .caption { font-size: 13px; font-weight: 500; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ============================================
+   MOBILE HAMBURGER BUTTON
+   ============================================ */
+.hamburger-btn {
+  display: none; /* Hidden on desktop */
+  background-color: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-extrude);
+  color: var(--accent);
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.hamburger-btn:active {
+  box-shadow: var(--shadow-inset);
+}
+
+.hamburger-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* ============================================
+   SIDEBAR BACKDROP (mobile only)
+   ============================================ */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-backdrop.visible {
+  display: block;
+  opacity: 1;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE — ≤ 768px
+   ============================================ */
+@media (max-width: 768px) {
+  /* Collapse grid to single column */
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* Off-canvas sidebar */
+  .sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    width: 260px;
+    height: 100vh;
+    z-index: 100;
+    transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+  }
+
+  .sidebar.open {
+    left: 0;
+    box-shadow: 8px 0px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Show hamburger */
+  .hamburger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Adjust main content padding */
+  .main-content {
+    padding: 16px;
+    height: 100vh;
+  }
+
+  /* Top bar: allow wrapping */
+  .top-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  /* Reduce page title size */
+  h1 {
+    font-size: 18px;
+  }
+
+  /* Top bar actions wrap */
+  .top-bar-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Neumorphism cards: slightly smaller padding */
+  .neu-card {
+    padding: 16px;
+  }
+
+  /* SaaS overlay responsive */
+  .saas-overlay-header {
+    padding: 16px;
+  }
+
+  .saas-overlay-body {
+    padding: 16px;
+  }
+
+  .saas-overlay-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* ============================================
+   DASHBOARD RESPONSIVE GRID CLASSES
+   ============================================ */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(460px, 2.2fr) minmax(400px, 1.8fr) minmax(300px, 1.5fr);
+  gap: 24px;
+}
+
+.dashboard-inner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+}
+
+.dashboard-kpi-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-inner-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-kpi-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* ============================================
+   TASKS BOARD KPI BAR
+   ============================================ */
+.tasks-kpi-bar {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.tasks-kpi-bar > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.tasks-kpi-bar > button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1024px) {
+  .tasks-kpi-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .tasks-kpi-bar > button {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .tasks-kpi-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================
+   GANTT SUMMARY ROW
+   ============================================ */
+.gantt-summary-row {
+  display: flex;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .gantt-summary-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+/* ============================================
+   MEETINGS GRID FIX
+   ============================================ */
+@media (max-width: 480px) {
+  .meetings-split-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

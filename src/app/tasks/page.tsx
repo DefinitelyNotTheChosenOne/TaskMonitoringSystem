@@ -38,7 +38,7 @@ export default function TasksBoard() {
         
         {/* Header & Top Summary KPI Bar */}
         <div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+          <div className="tasks-kpi-bar">
             
             <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>August 03, 2026 Monday</div>

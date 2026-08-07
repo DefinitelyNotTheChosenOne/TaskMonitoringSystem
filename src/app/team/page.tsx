@@ -24,7 +24,8 @@ export default function TeamPage() {
       </div>
 
       <div className="neu-card" style={{ padding: '0', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--dark)', color: 'var(--text-secondary)' }}>
               <th style={{ padding: '24px', fontWeight: 600 }}>Employee</th>
@@ -91,6 +92,7 @@ export default function TeamPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
