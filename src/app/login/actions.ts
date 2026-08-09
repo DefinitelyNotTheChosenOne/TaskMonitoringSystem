@@ -17,7 +17,8 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword(data)
 
   if (error) {
-    return { error: error.message }
+    console.error("SUPABASE LOGIN ERROR:", error)
+    return { error: error.message || 'Unknown authentication error' }
   }
 
   revalidatePath('/', 'layout')

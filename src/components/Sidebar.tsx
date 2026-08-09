@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut
 } from 'lucide-react';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
 
   // Auto-close sidebar on route change (mobile navigation)
@@ -30,6 +32,7 @@ export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
 
   return (
     <>
+      {isLoggingOut && <FullScreenLoader message="Signing out..." />}
       {/* Backdrop overlay — only rendered on mobile when sidebar is open */}
       <div
         className={`sidebar-backdrop ${isOpen ? 'visible' : ''}`}
@@ -98,6 +101,7 @@ export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
           </Link>
           <button 
             onClick={async () => {
+              setIsLoggingOut(true);
               const { logout } = await import('@/app/login/actions');
               await logout();
             }}

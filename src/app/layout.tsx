@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import AppShell from '@/components/AppShell';
+import InitialAppLoader from '@/components/InitialAppLoader';
 import './globals.css';
 
 import { getUserRole } from '@/lib/auth';
@@ -19,6 +20,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
+        <InitialAppLoader />
         <AppShell userRole={userRole}>
           {children}
         </AppShell>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { login } from './actions'
+import FullScreenLoader from '@/components/FullScreenLoader'
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
@@ -13,14 +14,16 @@ export default function LoginPage() {
 
     const result = await login(formData)
     if (result?.error) {
-      setError(result.error)
+      setError(typeof result.error === 'string' ? result.error : JSON.stringify(result.error))
     }
     
     setLoading(false)
   }
 
   return (
-    <div style={{
+    <>
+      {loading && <FullScreenLoader message="Authenticating..." />}
+      <div style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
@@ -126,5 +129,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
