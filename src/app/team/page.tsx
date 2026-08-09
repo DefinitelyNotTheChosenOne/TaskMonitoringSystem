@@ -16,6 +16,9 @@ export default function TeamPage() {
     }
     loadTeam();
   }, []);
+
+  return (
+    <div style={{ padding: '24px' }}>
       <div className="flex-between" style={{ marginBottom: '32px' }}>
         <div>
           <h2>Team Data Sheet</h2>
