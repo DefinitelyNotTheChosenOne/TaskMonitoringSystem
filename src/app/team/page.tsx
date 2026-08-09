@@ -71,7 +71,7 @@ export default function TeamPage() {
                       fontWeight: 'bold',
                       color: 'var(--accent)'
                     }}>
-                      {emp.name.split(' ').map(n => n[0]).join('')}
+                      {emp.name.split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '15px' }}>{emp.name}</div>
