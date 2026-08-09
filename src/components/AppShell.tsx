@@ -1,19 +1,25 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import PageAnimator from '@/components/PageAnimator';
 import PageHeader from '@/components/PageHeader';
 import { Menu } from 'lucide-react';
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({ children, userRole }: { children: React.ReactNode, userRole?: string | null }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
+  if (pathname === '/login') {
+    return <>{children}</>;
+  }
+
   return (
     <div className="app-layout">
-      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
+      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} userRole={userRole} />
 
       {/* Main Content */}
       <main className="main-content">

@@ -1,71 +1,86 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, 
   LineChart, Line, XAxis, YAxis, ResponsiveContainer,
   BarChart, Bar, Legend
 } from 'recharts';
-
-const priorityData = [
-  { name: 'Low', value: 20, color: '#10b981' }, // Green
-  { name: 'Medium', value: 30, color: '#3b82f6' }, // Blue
-  { name: 'High', value: 35, color: '#f59e0b' }, // Amber
-  { name: 'Very High', value: 5, color: '#f97316' }, // Orange
-  { name: 'Critical', value: 10, color: '#ef4444' }, // Red
-];
-
-const statusData = [
-  { name: 'Not Started', tasks: 15 },
-  { name: 'In Progress', tasks: 24 },
-  { name: 'On Hold', tasks: 5 },
-  { name: 'Active', tasks: 12 },
-  { name: 'In Review', tasks: 8 },
-  { name: 'Completed', tasks: 32 },
-  { name: 'Overdue', tasks: 5 },
-  { name: 'Cancelled', tasks: 2 },
-];
-
-const currentPerformanceData = [
-  { day: '28', tasks: 12 }, { day: '29', tasks: 19 },
-  { day: '30', tasks: 15 }, { day: '31', tasks: 22 },
-  { day: '01', tasks: 28 }, { day: '02', tasks: 10 },
-  { day: '03', tasks: 14 },
-];
-
-const departmentData = [
-  { name: 'Admin', completed: 45, notCompleted: 10 },
-  { name: 'Production', completed: 80, notCompleted: 20 },
-  { name: 'Marketing', completed: 35, notCompleted: 15 },
-  { name: 'Operations', completed: 20, notCompleted: 5 },
-  { name: 'Finance', completed: 50, notCompleted: 10 },
-];
-
-const categoryData = [
-  { name: 'Project', completed: 60, notCompleted: 10 },
-  { name: 'Design', completed: 85, notCompleted: 20 },
-  { name: 'Meeting', completed: 40, notCompleted: 10 },
-  { name: 'Development', completed: 25, notCompleted: 5 },
-  { name: 'Client Work', completed: 55, notCompleted: 15 },
-  { name: 'Support', completed: 30, notCompleted: 5 },
-];
-
-const monthlyData = Array.from({ length: 31 }, (_, i) => ({
-  day: i + 1,
-  tasks: Math.floor(Math.random() * 20) + 5
-}));
-
-const yearlyData = [
-  { month: 'January', tasks: 120 }, { month: 'February', tasks: 150 },
-  { month: 'March', tasks: 180 }, { month: 'April', tasks: 140 },
-  { month: 'May', tasks: 200 }, { month: 'June', tasks: 170 },
-  { month: 'July', tasks: 220 }, { month: 'August', tasks: 210 },
-  { month: 'September', tasks: 190 }, { month: 'October', tasks: 230 },
-  { month: 'November', tasks: 250 }, { month: 'December', tasks: 280 },
-];
+import { getDashboardStats } from '@/lib/api/tasks';
 
 export default function Home() {
   const [activeChart, setActiveChart] = useState<'department' | 'category'>('department');
+  
+  const [priorityData, setPriorityData] = useState<any[]>([
+    { name: 'Low', value: 20, color: '#10b981' }, 
+    { name: 'Medium', value: 30, color: '#3b82f6' }, 
+    { name: 'High', value: 35, color: '#f59e0b' }, 
+    { name: 'Very High', value: 5, color: '#f97316' }, 
+    { name: 'Critical', value: 10, color: '#ef4444' }
+  ]);
+  const [statusData, setStatusData] = useState<any[]>([
+    { name: 'Not Started', tasks: 15 },
+    { name: 'In Progress', tasks: 24 },
+    { name: 'On Hold', tasks: 5 },
+    { name: 'Active', tasks: 12 },
+    { name: 'In Review', tasks: 8 },
+    { name: 'Completed', tasks: 32 },
+    { name: 'Overdue', tasks: 5 },
+    { name: 'Cancelled', tasks: 2 },
+  ]);
+  const [tasksCount, setTasksCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      const stats = await getDashboardStats();
+      if (stats) {
+        if (stats.priorityData.length > 0) setPriorityData(stats.priorityData);
+        if (stats.statusData.length > 0) setStatusData(stats.statusData);
+        setTasksCount(stats.tasks ? stats.tasks.length : 0);
+      }
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+
+  const currentPerformanceData = [
+    { day: '28', tasks: 12 }, { day: '29', tasks: 19 },
+    { day: '30', tasks: 15 }, { day: '31', tasks: 22 },
+    { day: '01', tasks: 28 }, { day: '02', tasks: 10 },
+    { day: '03', tasks: 14 },
+  ];
+
+  const departmentData = [
+    { name: 'Admin', completed: 45, notCompleted: 10 },
+    { name: 'Production', completed: 80, notCompleted: 20 },
+    { name: 'Marketing', completed: 35, notCompleted: 15 },
+    { name: 'Operations', completed: 20, notCompleted: 5 },
+    { name: 'Finance', completed: 50, notCompleted: 10 },
+  ];
+
+  const categoryData = [
+    { name: 'Project', completed: 60, notCompleted: 10 },
+    { name: 'Design', completed: 85, notCompleted: 20 },
+    { name: 'Meeting', completed: 40, notCompleted: 10 },
+    { name: 'Development', completed: 25, notCompleted: 5 },
+    { name: 'Client Work', completed: 55, notCompleted: 15 },
+    { name: 'Support', completed: 30, notCompleted: 5 },
+  ];
+
+  const monthlyData = Array.from({ length: 31 }, (_, i) => ({
+    day: i + 1,
+    tasks: Math.floor(Math.random() * 20) + 5
+  }));
+
+  const yearlyData = [
+    { month: 'January', tasks: 120 }, { month: 'February', tasks: 150 },
+    { month: 'March', tasks: 180 }, { month: 'April', tasks: 140 },
+    { month: 'May', tasks: 200 }, { month: 'June', tasks: 170 },
+    { month: 'July', tasks: 220 }, { month: 'August', tasks: 210 },
+    { month: 'September', tasks: 190 }, { month: 'October', tasks: 230 },
+    { month: 'November', tasks: 250 }, { month: 'December', tasks: 280 },
+  ];
 
   return (
     <div className="dashboard-grid">
@@ -117,7 +132,7 @@ export default function Home() {
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>100%</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{tasksCount > 0 ? '100%' : '0%'}</div>
               </div>
             </div>
           </div>
@@ -237,8 +252,8 @@ export default function Home() {
         <div className="neu-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <h3 className="card-title" style={{ width: '100%', marginBottom: '16px' }}>Current Tasks</h3>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '20px', fontWeight: 700 }}>#DIV/0!</div>
-            <div className="caption text-secondary">Done</div>
+            <div style={{ fontSize: '20px', fontWeight: 700 }}>{tasksCount}</div>
+            <div className="caption text-secondary">Total</div>
           </div>
         </div>
 

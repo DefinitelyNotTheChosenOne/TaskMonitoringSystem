@@ -1,17 +1,21 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { Mail, Phone, MoreVertical } from 'lucide-react';
+import { getTeamMembers } from '@/lib/api/team';
 
 export default function TeamPage() {
-  const team = [
-    { id: 'EMP-001', name: 'John Doe', position: 'Project Manager', department: 'Operations', email: 'john@jrpco.com' },
-    { id: 'EMP-002', name: 'Alice Smith', position: 'Lead Developer', department: 'Development', email: 'alice@jrpco.com' },
-    { id: 'EMP-003', name: 'Mark Johnson', position: 'UI/UX Designer', department: 'Design', email: 'mark@jrpco.com' },
-    { id: 'EMP-004', name: 'Sarah Williams', position: 'Marketing Strategist', department: 'Marketing', email: 'sarah@jrpco.com' },
-    { id: 'EMP-005', name: 'David Brown', position: 'Financial Analyst', department: 'Finance', email: 'david@jrpco.com' },
-    { id: 'EMP-006', name: 'Emily Davis', position: 'Frontend Developer', department: 'Development', email: 'emily@jrpco.com' },
-  ];
+  const [team, setTeam] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  return (
-    <div>
+  useEffect(() => {
+    async function loadTeam() {
+      const data = await getTeamMembers();
+      setTeam(data);
+      setLoading(false);
+    }
+    loadTeam();
+  }, []);
       <div className="flex-between" style={{ marginBottom: '32px' }}>
         <div>
           <h2>Team Data Sheet</h2>
@@ -36,7 +40,19 @@ export default function TeamPage() {
             </tr>
           </thead>
           <tbody>
-            {team.map((emp) => (
+            {loading ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  Loading team data...
+                </td>
+              </tr>
+            ) : team.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  No team members found.
+                </td>
+              </tr>
+            ) : team.map((emp) => (
               <tr key={emp.id} style={{ borderBottom: '1px solid var(--shadow-inset)' }}>
                 <td style={{ padding: '24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -60,7 +76,7 @@ export default function TeamPage() {
                     </div>
                   </div>
                 </td>
-                <td style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: '14px' }}>{emp.id}</td>
+                <td style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: '14px' }}>{emp.emp_id}</td>
                 <td style={{ padding: '24px' }}>
                   <span style={{ 
                     padding: '4px 12px', 

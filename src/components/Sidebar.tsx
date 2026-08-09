@@ -10,15 +10,17 @@ import {
   KanbanSquare, 
   Video, 
   Users, 
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  userRole?: string | null;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
   const pathname = usePathname();
 
   // Auto-close sidebar on route change (mobile navigation)
@@ -67,11 +69,43 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </Link>
         </nav>
 
+        {(userRole === 'admin' || userRole === 'superadmin') && (
+          <>
+            <div className="sidebar-section-title">Admin</div>
+            <nav className="sidebar-nav">
+              <Link href="/admin/users" className={`nav-link ${pathname === '/admin/users' ? 'active' : ''}`}>
+                <Users size={18} /> Manage Users
+              </Link>
+            </nav>
+          </>
+        )}
+
+        {userRole === 'superadmin' && (
+          <>
+            <div className="sidebar-section-title">Superadmin</div>
+            <nav className="sidebar-nav">
+              <Link href="/superadmin/companies" className={`nav-link ${pathname === '/superadmin/companies' ? 'active' : ''}`}>
+                <LayoutDashboard size={18} /> Manage Companies
+              </Link>
+            </nav>
+          </>
+        )}
+
         <div className="sidebar-section-title">Help</div>
         <nav className="sidebar-nav">
           <Link href="/settings" className={`nav-link ${pathname === '/settings' ? 'active' : ''}`}>
             <Settings size={18} /> Settings
           </Link>
+          <button 
+            onClick={async () => {
+              const { logout } = await import('@/app/login/actions');
+              await logout();
+            }}
+            className="nav-link" 
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            <LogOut size={18} /> Log Out
+          </button>
         </nav>
       </aside>
     </>
