@@ -1,328 +1,1266 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, PieChart } from 'lucide-react';
+import React, { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  BarChart3,
+  Download,
+  Edit3,
+  FileSpreadsheet,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import ModalDialog from '@/components/ui/ModalDialog';
+import TaskFormModal from '@/components/tasks/TaskFormModal';
+import TaskDetailModal from '@/components/tasks/TaskDetailModal';
+import DeleteConfirmModal from '@/components/tasks/DeleteConfirmModal';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useWorkspacePeriod } from '@/components/WorkspacePeriodProvider';
+import {
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+  TaskInput,
+  TaskRecord,
+  WorkspaceContext,
+  computeDashboardAnalytics,
+  computeDaysLeft,
+  getTaskWeekBuckets,
+  isTaskOverdue,
+  toISODateOnly,
+} from '@/lib/types/task';
+import {
+  bulkDeleteTasks,
+  bulkUpdateTasks,
+  createTask,
+  deleteTask,
+  getWorkspaceContext,
+  importTasksBatch,
+  listTasks,
+  updateTask,
+} from '@/lib/api/tasks';
+import {
+  exportTasksToCsv,
+  exportTasksToExcel,
+  parseTasksFromSpreadsheet,
+} from '@/lib/excelTasks';
 
-const dummyTasks = Array(20).fill(null).map((_, i) => ({
-  person: i % 2 === 0 ? 'John Doe' : 'Jane Smith',
-  task: `Update UI ${i + 1}`,
-  desc: 'Refactor main dashboard components',
-  category: i % 3 === 0 ? 'Design' : 'Development',
-  priority: i % 4 === 0 ? 'High' : 'Medium',
-  department: 'Product',
-  dueDate: '10/08/26',
-  daysLeft: '7',
-  assignedOn: '01/08/26',
-  status: i % 5 === 0 ? 'Completed' : 'In Progress',
-  remarks: 'Open',
-  attachments: '2 files',
-  notes: 'Needs review'
-}));
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
-export default function TasksBoard() {
-  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+type ScopeFilter = 'all' | 'period' | 'mine' | 'overdue' | 'ongoing' | 'upcoming' | 'today';
+
+type SortKey =
+  | 'task_code'
+  | 'title'
+  | 'assignee_name'
+  | 'category'
+  | 'priority'
+  | 'department'
+  | 'due_date'
+  | 'days_left'
+  | 'assigned_on'
+  | 'status'
+  | 'progress'
+  | 'remarks';
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+const PRIORITY_RANK: Record<string, number> = {
+  Low: 1,
+  Medium: 2,
+  High: 3,
+  'Very High': 4,
+  Critical: 5,
+};
+
+function getDaysLeftBadge(daysLeft: number | null, status: string) {
+  if (status === 'Completed') {
+    return <span className="badge badge--success">Done</span>;
+  }
+  if (status === 'Cancelled') {
+    return <span className="badge badge--neutral">Cancelled</span>;
+  }
+  if (daysLeft === null) {
+    return <span className="text-secondary">—</span>;
+  }
+  if (daysLeft < 0) {
+    return <span className="badge badge--danger font-mono">{Math.abs(daysLeft)}d overdue</span>;
+  }
+  if (daysLeft === 0) {
+    return <span className="badge badge--warning font-mono">Today</span>;
+  }
+  if (daysLeft <= 2) {
+    return <span className="badge badge--urgent font-mono">{daysLeft}d</span>;
+  }
+  return <span className="font-mono">{daysLeft}d</span>;
+}
+
+function TasksBoardContent() {
+  const searchParams = useSearchParams();
+  const initialParam = searchParams.get('filter');
+  const validInitialScope: ScopeFilter =
+    initialParam === 'overdue' ||
+    initialParam === 'ongoing' ||
+    initialParam === 'upcoming' ||
+    initialParam === 'today' ||
+    initialParam === 'mine' ||
+    initialParam === 'period'
+      ? initialParam
+      : 'all';
+
+  const { month, year, todayFormatted, todayWeekday } = useWorkspacePeriod();
+  const { showToast } = useToast();
+  const captionId = useId();
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  const [workspace, setWorkspace] = useState<WorkspaceContext | null>(null);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scopeOverride, setScopeOverride] = useState<ScopeFilter | null>(null);
+  const scopeFilter = scopeOverride ?? validInitialScope;
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [priorityFilter, setPriorityFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [assigneeFilter, setAssigneeFilter] = useState('All');
+
+  // Sorting & Selection
+  const [sort, setSort] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null);
+  const [sortStatus, setSortStatus] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Modals
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [formState, setFormState] = useState<{
+    open: boolean;
+    mode: 'create' | 'edit';
+    task: TaskRecord | null;
+  }>({ open: false, mode: 'create', task: null });
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { type: 'single'; task: TaskRecord }
+    | { type: 'bulk'; ids: string[] }
+    | null
+  >(null);
+
+  const loadWorkspaceAndTasks = useCallback(async () => {
+    const ctx = await getWorkspaceContext();
+    const { tasks: rows, error } = await listTasks(ctx.employees);
+    setWorkspace(ctx);
+    if (error) {
+      showToast({ title: 'Could not load tasks', description: error, tone: 'danger' });
+    } else {
+      setTasks(rows);
+    }
+    setLoading(false);
+  }, [showToast]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOverlayOpen(false);
+    let active = true;
+    async function init() {
+      const ctx = await getWorkspaceContext();
+      const { tasks: rows, error } = await listTasks(ctx.employees);
+      if (!active) return;
+      setWorkspace(ctx);
+      if (error) {
+        showToast({ title: 'Could not load tasks', description: error, tone: 'danger' });
+      } else {
+        setTasks(rows);
       }
+      setLoading(false);
+    }
+    void init();
+    return () => {
+      active = false;
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [showToast]);
+
+  const userId = workspace?.userId ?? null;
+  const categories = useMemo(
+    () =>
+      workspace?.categories ?? [
+        'Project',
+        'Design',
+        'Meeting',
+        'Development',
+        'Client Work',
+        'Support',
+      ],
+    [workspace]
+  );
+  const departments = useMemo(
+    () =>
+      workspace?.departments ?? [
+        'Admin',
+        'Production',
+        'Marketing',
+        'Operations',
+        'Finance',
+      ],
+    [workspace]
+  );
+  const employees = workspace?.employees ?? [];
+  const detailTask = useMemo(
+    () => (detailTaskId ? tasks.find((t) => t.id === detailTaskId) ?? null : null),
+    [detailTaskId, tasks]
+  );
+
+  const analytics = useMemo(
+    () =>
+      computeDashboardAnalytics(
+        tasks,
+        month,
+        year,
+        userId,
+        categories,
+        departments
+      ),
+    [tasks, month, year, userId, categories, departments]
+  );
+
+  const filteredTasks = useMemo(() => {
+    const monthIdx = Math.max(0, MONTH_NAMES.indexOf(month));
+    const ymPrefix = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+    const q = searchQuery.trim().toLowerCase();
+
+    return tasks.filter((task) => {
+      if (q) {
+        const hay = `${task.task_code} ${task.title} ${task.description} ${task.assignee_name} ${task.notes}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+
+      if (scopeFilter === 'mine' && userId && task.assignee_id !== userId) {
+        return false;
+      }
+      if (scopeFilter === 'overdue' && !isTaskOverdue(task)) {
+        return false;
+      }
+      if (scopeFilter === 'ongoing' && !getTaskWeekBuckets(task).ongoingThisWeek) {
+        return false;
+      }
+      if (scopeFilter === 'upcoming' && !getTaskWeekBuckets(task).upcomingNextWeek) {
+        return false;
+      }
+      if (scopeFilter === 'today' && !getTaskWeekBuckets(task).dueToday) {
+        return false;
+      }
+      if (scopeFilter === 'period') {
+        const refDate = task.due_date || toISODateOnly(task.created_at);
+        if (!refDate.startsWith(ymPrefix)) return false;
+      }
+
+      if (statusFilter !== 'All' && task.status !== statusFilter) return false;
+      if (priorityFilter !== 'All' && task.priority !== priorityFilter) return false;
+      if (categoryFilter !== 'All' && task.category !== categoryFilter) return false;
+      if (departmentFilter !== 'All' && task.department !== departmentFilter) return false;
+      if (assigneeFilter === 'Unassigned' && task.assignee_id !== null) return false;
+      if (assigneeFilter !== 'All' && assigneeFilter !== 'Unassigned' && task.assignee_id !== assigneeFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    tasks,
+    searchQuery,
+    scopeFilter,
+    userId,
+    month,
+    year,
+    statusFilter,
+    priorityFilter,
+    categoryFilter,
+    departmentFilter,
+    assigneeFilter,
+  ]);
+
+  const sortedTasks = useMemo(() => {
+    if (!sort) return filteredTasks;
+    const factor = sort.direction === 'ascending' ? 1 : -1;
+
+    return filteredTasks.toSorted((a, b) => {
+      if (sort.key === 'progress') {
+        return factor * (a.progress - b.progress);
+      }
+      if (sort.key === 'days_left') {
+        const da = computeDaysLeft(a.due_date) ?? 99999;
+        const db = computeDaysLeft(b.due_date) ?? 99999;
+        return factor * (da - db);
+      }
+      if (sort.key === 'priority') {
+        return factor * ((PRIORITY_RANK[a.priority] ?? 0) - (PRIORITY_RANK[b.priority] ?? 0));
+      }
+      const av = String(a[sort.key] ?? '');
+      const bv = String(b[sort.key] ?? '');
+      return factor * collator.compare(av, bv);
+    });
+  }, [filteredTasks, sort]);
+
+  // Keep select-all checkbox indeterminate state in sync (checkbox guide)
+  const visibleIds = useMemo(() => sortedTasks.map((t) => t.id), [sortedTasks]);
+  const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected;
+    }
+  }, [someVisibleSelected]);
+
+  const handleSort = (key: SortKey, label: string) => {
+    const direction =
+      sort?.key === key && sort.direction === 'ascending' ? 'descending' : 'ascending';
+    setSort({ key, direction });
+    setSortStatus(`Sorted by ${label}, ${direction}, ${sortedTasks.length} rows`);
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleRowSelect = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSaveTask = async (input: TaskInput) => {
+    if (formState.mode === 'create') {
+      const res = await createTask(input, workspace?.currentEmployee?.company_id);
+      if (!res.ok) {
+        showToast({ title: 'Failed to create task', description: res.error ?? undefined, tone: 'danger' });
+        return;
+      }
+      showToast({
+        title: 'Task created',
+        description: res.migrationRequired
+          ? 'Saved core fields. Run supabase_migration.sql to store extended fields.'
+          : input.title,
+        tone: res.migrationRequired ? 'warning' : 'success',
+      });
+    } else if (formState.task) {
+      const res = await updateTask(formState.task.id, input);
+      if (!res.ok) {
+        showToast({ title: 'Failed to update task', description: res.error ?? undefined, tone: 'danger' });
+        return;
+      }
+      showToast({ title: 'Task updated', description: input.title, tone: 'success' });
+    }
+    setFormState({ open: false, mode: 'create', task: null });
+    await loadWorkspaceAndTasks();
+  };
+
+  const handleInlineUpdate = async (
+    task: TaskRecord,
+    patch: Partial<TaskInput>,
+    fieldLabel: string
+  ) => {
+    const res = await updateTask(task.id, patch);
+    if (!res.ok) {
+      showToast({
+        title: `Could not update ${fieldLabel}`,
+        description: res.error ?? undefined,
+        tone: 'danger',
+      });
+      return;
+    }
+    showToast({
+      title: `${task.task_code} updated`,
+      description: `${fieldLabel} updated.`,
+      tone: 'success',
+    });
+    await loadWorkspaceAndTasks();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === 'single') {
+      const res = await deleteTask(deleteTarget.task.id);
+      if (!res.ok) {
+        showToast({ title: 'Failed to delete task', description: res.error ?? undefined, tone: 'danger' });
+      } else {
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(deleteTarget.task.id);
+          return next;
+        });
+        if (detailTaskId === deleteTarget.task.id) setDetailTaskId(null);
+        showToast({ title: 'Task deleted', description: deleteTarget.task.title, tone: 'info' });
+        await loadWorkspaceAndTasks();
+      }
+    } else {
+      const res = await bulkDeleteTasks(deleteTarget.ids);
+      if (!res.ok) {
+        showToast({ title: 'Bulk delete failed', description: res.error ?? undefined, tone: 'danger' });
+      } else {
+        setSelectedIds(new Set());
+        showToast({
+          title: `Deleted ${deleteTarget.ids.length} tasks`,
+          tone: 'info',
+        });
+        await loadWorkspaceAndTasks();
+      }
+    }
+    setDeleteTarget(null);
+  };
+
+  const handleBulkPatch = async (patch: Partial<TaskInput>, label: string) => {
+    const ids = Array.from(selectedIds);
+    const res = await bulkUpdateTasks(ids, patch);
+    if (!res.ok) {
+      showToast({ title: 'Bulk update failed', description: res.error ?? undefined, tone: 'danger' });
+      return;
+    }
+    showToast({ title: `Updated ${ids.length} tasks`, description: label, tone: 'success' });
+    setSelectedIds(new Set());
+    await loadWorkspaceAndTasks();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = await parseTasksFromSpreadsheet(file, employees);
+      if (parsed.length === 0) {
+        showToast({
+          title: 'No importable rows found',
+          description: 'Ensure the spreadsheet has a Task or Task Description column.',
+          tone: 'warning',
+        });
+        return;
+      }
+      const res = await importTasksBatch(parsed, workspace?.currentEmployee?.company_id);
+      if (res.error) {
+        showToast({ title: 'Import failed', description: res.error, tone: 'danger' });
+        return;
+      }
+      showToast({
+        title: `Imported ${res.count} tasks`,
+        description: res.migrationRequired
+          ? 'Run supabase_migration.sql to persist category, department, and progress.'
+          : file.name,
+        tone: res.migrationRequired ? 'warning' : 'success',
+      });
+      await loadWorkspaceAndTasks();
+    } catch (err) {
+      showToast({
+        title: 'Could not parse spreadsheet',
+        description: err instanceof Error ? err.message : 'Invalid file format',
+        tone: 'danger',
+      });
+    }
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim() !== '' ||
+    scopeFilter !== 'all' ||
+    statusFilter !== 'All' ||
+    priorityFilter !== 'All' ||
+    categoryFilter !== 'All' ||
+    departmentFilter !== 'All' ||
+    assigneeFilter !== 'All';
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setScopeOverride('all');
+    setStatusFilter('All');
+    setPriorityFilter('All');
+    setCategoryFilter('All');
+    setDepartmentFilter('All');
+    setAssigneeFilter('All');
+  };
+
+  const renderSortButton = (key: SortKey, label: string) => {
+    const isSorted = sort?.key === key;
+    return (
+      <button
+        type="button"
+        className="table-sort-btn"
+        onClick={() => handleSort(key, label)}
+      >
+        <span>{label}</span>
+        {isSorted ? (
+          sort.direction === 'ascending' ? (
+            <ArrowUp size={14} aria-hidden="true" className="sort-icon sort-icon--active" />
+          ) : (
+            <ArrowDown size={14} aria-hidden="true" className="sort-icon sort-icon--active" />
+          )
+        ) : (
+          <ArrowUpDown size={14} aria-hidden="true" className="sort-icon" />
+        )}
+      </button>
+    );
+  };
 
   return (
-    <>
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden' }}>
-        
-        {/* Header & Top Summary KPI Bar */}
-        <div>
-          <div className="tasks-kpi-bar">
-            
-            <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>August 03, 2026 Monday</div>
-              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>12 Tasks Due Today</div>
-            </div>
-            
-            <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Tasks Due Today by Priority</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>Critical: 2</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(249, 115, 22, 0.1)', color: '#f97316' }}>V. High: 1</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>High: 4</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>Medium: 3</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>Low: 2</span>
-              </div>
-            </div>
-            
-            <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Tasks Due Today by Status</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)' }}>WIP: 5</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)' }}>Review: 4</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>Done: 3</span>
-              </div>
-            </div>
-            
-            <div className="neu-card" style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Distribution by Category</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(91, 124, 250, 0.1)', color: 'var(--accent)' }}>Design: 4</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(91, 124, 250, 0.1)', color: 'var(--accent)' }}>Dev: 6</span>
-                <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: 'rgba(91, 124, 250, 0.1)', color: 'var(--accent)' }}>QA: 2</span>
-              </div>
-            </div>
-            
-            <div className="neu-card" style={{ flex: 1, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Selected Year</div>
-                <select className="neu-select" defaultValue="2026" style={{ width: '100%', padding: '4px', fontSize: '12px' }}>
-                  <option value="2026">2026</option>
-                </select>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Selected Month</div>
-                <select className="neu-select" defaultValue="August" style={{ width: '100%', padding: '4px', fontSize: '12px' }}>
-                  <option value="August">August</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Status Drawer Button */}
-            <button 
-              className="neu-button" 
-              style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '0 24px' }}
-              onClick={() => setIsOverlayOpen(true)}
-            >
-              <PieChart size={24} />
-              <span style={{ fontWeight: 600 }}>Status</span>
-            </button>
-
+    <div className="tasks-page">
+      {workspace && !workspace.schemaReady && !bannerDismissed && (
+        <div className="info-banner" role="status">
+          <div className="info-banner-copy">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span>
+              Extended columns &amp; checklists require running <code>supabase_migration.sql</code> in
+              your Supabase SQL Editor. Core task actions still work safely.
+            </span>
           </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setBannerDismissed(true)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Live KPI Summary Strip */}
+      <section aria-label="Tasks summary" className="tasks-summary-bar">
+        <article className="surface-card surface-card--compact">
+          <div className="tasks-summary-label">
+            {todayFormatted} · {todayWeekday}
+          </div>
+          {loading ? (
+            <div className="skeleton-bar" style={{ inlineSize: '9rem', blockSize: '1.375rem' }} />
+          ) : (
+            <div className="tasks-summary-value">
+              <span className="font-mono">{analytics.dueTodayCount}</span> Tasks Due Today
+            </div>
+          )}
+        </article>
+
+        <article className="surface-card surface-card--compact">
+          <div className="tasks-summary-label">Due Today by Priority</div>
+          {loading ? (
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              <div className="skeleton-bar" style={{ inlineSize: '4rem', blockSize: '1.375rem' }} />
+              <div className="skeleton-bar" style={{ inlineSize: '4rem', blockSize: '1.375rem' }} />
+              <div className="skeleton-bar" style={{ inlineSize: '4rem', blockSize: '1.375rem' }} />
+            </div>
+          ) : (
+            <div className="pill-cluster">
+              {analytics.dueTodayByPriority.map((item) => (
+                <span key={item.label} className={`badge badge--${item.tone} font-mono`}>
+                  {item.label}: {item.count}
+                </span>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="surface-card surface-card--compact">
+          <div className="tasks-summary-label">Overall Completion</div>
+          {loading ? (
+            <div className="skeleton-bar" style={{ inlineSize: '7rem', blockSize: '1.375rem' }} />
+          ) : (
+            <div className="tasks-summary-value font-mono">
+              {analytics.completedTasks}/{analytics.totalTasks} ({analytics.completionRate}%)
+            </div>
+          )}
+        </article>
+
+        <article className="surface-card surface-card--compact">
+          <div className="tasks-summary-label">Overdue Tasks</div>
+          {loading ? (
+            <div className="skeleton-bar" style={{ inlineSize: '3.5rem', blockSize: '1.375rem' }} />
+          ) : (
+            <div
+              className="tasks-summary-value font-mono"
+              style={{
+                color:
+                  analytics.overdueCount > 0 ? 'var(--status-danger)' : 'var(--status-success)',
+              }}
+            >
+              {analytics.overdueCount}
+            </div>
+          )}
+        </article>
+      </section>
+
+      {/* Primary Action Toolbar */}
+      <div className="tasks-toolbar">
+        <div className="pill-cluster">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setFormState({ open: true, mode: 'create', task: null })}
+          >
+            <Plus size={16} aria-hidden="true" />
+            <span>New Task</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setIsAnalyticsOpen(true)}
+          >
+            <BarChart3 size={16} aria-hidden="true" />
+            <span>Status Analytics</span>
+          </button>
         </div>
 
-        {/* Main Body (Full Width Interactive Task Table) */}
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <div className="neu-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
-            <div className="table-scroll-container" style={{ overflow: 'auto', flex: 1 }}>
-              <table className="neu-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', whiteSpace: 'nowrap' }}>
-                <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--accent)', color: '#FFFFFF', zIndex: 1, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                  <tr>
-                    {['Person Assigned', 'Task', 'Task Description', 'Category', 'Priority', 'Department', 'Due Date', 'Days Left', 'Assigned On (dd/mm/yy)', 'Status', 'Remarks', 'Attachments', 'Notes'].map((th, i) => (
-                      <th key={i} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>{th}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {dummyTasks.map((t, i) => (
-                    <tr key={i} className="neu-table-row">
-                      <td style={{ padding: '8px 12px' }}>{t.person}</td>
-                      <td style={{ padding: '8px 12px', fontWeight: 500 }}>{t.task}</td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{t.desc}</td>
-                      <td style={{ padding: '8px 12px' }}>{t.category}</td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <span style={{ 
-                          padding: '2px 8px', 
-                          borderRadius: '10px', 
-                          fontSize: '11px',
-                          backgroundColor: t.priority === 'High' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                          color: t.priority === 'High' ? '#ef4444' : '#f59e0b'
-                        }}>{t.priority}</span>
-                      </td>
-                      <td style={{ padding: '8px 12px' }}>{t.department}</td>
-                      <td style={{ padding: '8px 12px' }}>{t.dueDate}</td>
-                      <td style={{ padding: '8px 12px' }}>{t.daysLeft}</td>
-                      <td style={{ padding: '8px 12px' }}>{t.assignedOn}</td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <span style={{ 
-                          padding: '2px 8px', 
-                          borderRadius: '10px', 
-                          fontSize: '11px',
-                          backgroundColor: t.status === 'Completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                          color: t.status === 'Completed' ? '#10b981' : '#3b82f6'
-                        }}>{t.status}</span>
-                      </td>
-                      <td style={{ padding: '8px 12px' }}>{t.remarks}</td>
-                      <td style={{ padding: '8px 12px' }}>{t.attachments}</td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{t.notes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <div className="pill-cluster">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="visually-hidden"
+            aria-label="Import tasks from Excel or CSV file"
+            onChange={(e) => void handleImportFile(e)}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload size={15} aria-hidden="true" />
+            <span>Import .xlsx</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => void exportTasksToExcel(sortedTasks, `tasks-${month}-${year}.xlsx`)}
+            disabled={sortedTasks.length === 0}
+          >
+            <FileSpreadsheet size={15} aria-hidden="true" />
+            <span>Export .xlsx</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => void exportTasksToCsv(sortedTasks, `tasks-${month}-${year}.csv`)}
+            disabled={sortedTasks.length === 0}
+          >
+            <Download size={15} aria-hidden="true" />
+            <span>CSV</span>
+          </button>
         </div>
       </div>
 
-      {/* Full-Page SaaS Status Overlay */}
-      {isOverlayOpen && (
-        <div className="saas-overlay-backdrop">
-          <div className="saas-overlay-header">
-            <h2 className="saas-overlay-title">Task Status & Distribution</h2>
-            <button className="saas-overlay-close" onClick={() => setIsOverlayOpen(false)} aria-label="Close overlay">
-              <X size={20} />
+      {/* Search, Scope & Attribute Filters */}
+      <section className="surface-card surface-card--compact" aria-label="Filter tasks">
+        <div className="filter-bar">
+          <div className="search-wrap">
+            <Search size={16} className="search-icon" aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search tasks by ID, title, description, or assignee"
+              className="field-input search-input"
+              placeholder="Search tasks, codes, or assignees..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <select
+            aria-label="Filter by timeframe or owner scope"
+            className="field-select field-select--compact"
+            value={scopeFilter}
+            onChange={(e) => setScopeOverride(e.target.value as ScopeFilter)}
+          >
+            <option value="all">All Tasks</option>
+            <option value="period">Period ({month} {year})</option>
+            <option value="mine">My Tasks</option>
+            <option value="today">Due Today</option>
+            <option value="ongoing">Ongoing This Week</option>
+            <option value="upcoming">Upcoming Next Week</option>
+            <option value="overdue">Overdue Only</option>
+          </select>
+
+          <select
+            aria-label="Filter by status"
+            className="field-select field-select--compact"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="All">All Statuses</option>
+            {TASK_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Filter by priority"
+            className="field-select field-select--compact"
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+          >
+            <option value="All">All Priorities</option>
+            {TASK_PRIORITIES.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Filter by category"
+            className="field-select field-select--compact"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="All">All Categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Filter by department"
+            className="field-select field-select--compact"
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+          >
+            <option value="All">All Departments</option>
+            {departments.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Filter by assignee"
+            className="field-select field-select--compact"
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+          >
+            <option value="All">All Assignees</option>
+            <option value="Unassigned">Unassigned</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>{emp.name}</option>
+            ))}
+          </select>
+
+          {hasActiveFilters && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={resetFilters}>
+              <RotateCcw size={14} aria-hidden="true" />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <section className="bulk-bar" aria-label="Bulk task actions">
+          <strong className="font-mono">{selectedIds.size} selected</strong>
+          <div className="bulk-bar-actions">
+            <select
+              aria-label="Bulk change status"
+              className="field-select field-select--compact"
+              defaultValue=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                void handleBulkPatch({ status: e.target.value }, `Status → ${e.target.value}`);
+                e.target.value = '';
+              }}
+            >
+              <option value="">Set Status...</option>
+              {TASK_STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+
+            <select
+              aria-label="Bulk change priority"
+              className="field-select field-select--compact"
+              defaultValue=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                void handleBulkPatch({ priority: e.target.value }, `Priority → ${e.target.value}`);
+                e.target.value = '';
+              }}
+            >
+              <option value="">Set Priority...</option>
+              {TASK_PRIORITIES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <select
+              aria-label="Bulk reassign tasks"
+              className="field-select field-select--compact"
+              defaultValue=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const val = e.target.value === '__none__' ? null : e.target.value;
+                void handleBulkPatch({ assignee_id: val }, 'Reassigned tasks');
+                e.target.value = '';
+              }}
+            >
+              <option value="">Reassign to...</option>
+              <option value="__none__">Unassigned</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              onClick={() => setDeleteTarget({ type: 'bulk', ids: Array.from(selectedIds) })}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              <span>Delete Selected</span>
             </button>
           </div>
-          <div className="saas-overlay-body">
-            <div className="saas-overlay-grid">
-              
-              {/* Card 1: Status Meters */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Tasks Due Today by Status</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, justifyContent: 'center' }}>
-                  {[
-                    { label: 'In Progress', count: 5, color: '#3b82f6', percent: '40%' },
-                    { label: 'In Review', count: 4, color: '#f59e0b', percent: '33%' },
-                    { label: 'Completed', count: 3, color: '#10b981', percent: '25%' },
-                    { label: 'Overdue', count: 0, color: '#ef4444', percent: '0%' }
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#e2e8f0' }}>
-                        <span>{item.label}</span>
-                        <span className="saas-pill" style={{ background: `${item.color}20`, color: item.color }}>{item.count}</span>
-                      </div>
-                      <div className="saas-meter-track"><div className="saas-meter-fill" style={{ width: item.percent, background: item.color }} /></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Card 2: Category Bars */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Distribution by Category</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, justifyContent: 'center' }}>
-                  {[
-                    { label: 'Design', count: 4, color: '#8b5cf6', percent: '30%' },
-                    { label: 'Development', count: 6, color: '#ec4899', percent: '45%' },
-                    { label: 'QA', count: 2, color: '#06b6d4', percent: '15%' },
-                    { label: 'Support', count: 1, color: '#f97316', percent: '10%' }
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#e2e8f0' }}>
-                        <span>{item.label}</span>
-                        <span style={{ fontWeight: 600, color: '#ffffff' }}>{item.count}</span>
-                      </div>
-                      <div className="saas-meter-track"><div className="saas-meter-fill" style={{ width: item.percent, background: item.color }} /></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Card 3: Priority Metrics */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Distribution by Priority</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: '8px' }}>
-                  {[
-                    { label: 'Critical', count: 2, color: '#ef4444' },
-                    { label: 'High', count: 4, color: '#f97316' },
-                    { label: 'Medium', count: 3, color: '#3b82f6' },
-                    { label: 'Low', count: 2, color: '#10b981' }
-                  ].map((item, i) => (
-                    <div key={i} className="saas-stat-row" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', margin: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }} />
-                        <span>{item.label}</span>
-                      </div>
-                      <span style={{ fontWeight: 600, color: '#ffffff' }}>{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Card 4: Department Bars */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Distribution by Department</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center' }}>
-                  {[
-                    { label: 'Admin', count: 1, percent: '10%' },
-                    { label: 'Production', count: 5, percent: '40%' },
-                    { label: 'Marketing', count: 2, percent: '20%' },
-                    { label: 'Operations', count: 1, percent: '10%' },
-                    { label: 'Finance', count: 3, percent: '20%' }
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '80px', fontSize: '12px', color: '#94a3b8' }}>{item.label}</div>
-                      <div className="saas-meter-track" style={{ flex: 1, marginTop: 0 }}><div className="saas-meter-fill" style={{ width: item.percent, background: '#6366f1' }} /></div>
-                      <div style={{ width: '20px', textAlign: 'right', fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>{item.count}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Card 5: General Status Distribution */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">General Status Distribution</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center' }}>
-                  {[
-                    { label: 'Pending', count: 8, percent: '35%' },
-                    { label: 'Active', count: 12, percent: '50%' },
-                    { label: 'Blocked', count: 3, percent: '15%' }
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '80px', fontSize: '12px', color: '#94a3b8' }}>{item.label}</div>
-                      <div className="saas-meter-track" style={{ flex: 1, marginTop: 0 }}><div className="saas-meter-fill" style={{ width: item.percent, background: '#14b8a6' }} /></div>
-                      <div style={{ width: '20px', textAlign: 'right', fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>{item.count}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Card 6: Remarks Split */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Distribution by Remarks</h3>
-                <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
-                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Open Tasks</div>
-                    <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff' }}>18</div>
-                  </div>
-                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Closed Tasks</div>
-                    <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff' }}>45</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 7: Monthly Performance */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Monthly Performance Breakdown</h3>
-                <div style={{ overflowX: 'auto', flex: 1 }}>
-                  <table className="saas-table">
-                    <thead>
-                      <tr><th>Date</th><th>Total Tasks</th><th>Completed</th><th>Rate %</th></tr>
-                    </thead>
-                    <tbody>
-                      <tr><td>Aug 01</td><td>12</td><td>10</td><td>83%</td></tr>
-                      <tr><td>Aug 02</td><td>15</td><td>15</td><td>100%</td></tr>
-                      <tr><td>Aug 03</td><td>8</td><td>4</td><td>50%</td></tr>
-                      <tr><td>Aug 04</td><td>10</td><td>9</td><td>90%</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Card 8: Yearly Performance */}
-              <div className="saas-card">
-                <h3 className="saas-card-title">Yearly Performance Breakdown</h3>
-                <div style={{ overflowX: 'auto', flex: 1 }}>
-                  <table className="saas-table">
-                    <thead>
-                      <tr><th>Month</th><th>Total Tasks</th><th>Completed</th><th>Rate %</th></tr>
-                    </thead>
-                    <tbody>
-                      <tr><td>January</td><td>120</td><td>110</td><td>91%</td></tr>
-                      <tr><td>February</td><td>95</td><td>85</td><td>89%</td></tr>
-                      <tr><td>March</td><td>140</td><td>135</td><td>96%</td></tr>
-                      <tr><td>April</td><td>115</td><td>100</td><td>86%</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
+        </section>
       )}
-    </>
+
+      {/* Main Live Tasks Table */}
+      <article className="surface-card surface-card--flush" style={{ flex: 1, minBlockSize: 0 }}>
+        <div role="status" className="visually-hidden">
+          {sortStatus}
+        </div>
+        <div
+          tabIndex={0}
+          role="region"
+          aria-labelledby={captionId}
+          className="table-region table-region--sticky-col"
+          style={{ '--table-max-block-size': 'calc(100dvh - 24rem)' } as React.CSSProperties}
+        >
+          <table className="data-table">
+            <caption id={captionId} className="visually-hidden">
+              Live team tasks board
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" style={{ inlineSize: '3rem' }}>
+                  <label className="checkbox-hit-target" aria-label="Select all visible tasks">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      className="checkbox-input"
+                      checked={allVisibleSelected}
+                      onChange={(e) => toggleSelectAll(e.target.checked)}
+                    />
+                  </label>
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'task_code' ? sort.direction : undefined}>
+                  {renderSortButton('task_code', 'Task ID')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'title' ? sort.direction : undefined} style={{ minInlineSize: '14rem' }}>
+                  {renderSortButton('title', 'Task')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'assignee_name' ? sort.direction : undefined} style={{ minInlineSize: '10rem' }}>
+                  {renderSortButton('assignee_name', 'Person Assigned')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'category' ? sort.direction : undefined}>
+                  {renderSortButton('category', 'Category')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'priority' ? sort.direction : undefined}>
+                  {renderSortButton('priority', 'Priority')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'department' ? sort.direction : undefined}>
+                  {renderSortButton('department', 'Department')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'due_date' ? sort.direction : undefined}>
+                  {renderSortButton('due_date', 'Due Date')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'days_left' ? sort.direction : undefined}>
+                  {renderSortButton('days_left', 'Days Left')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'assigned_on' ? sort.direction : undefined}>
+                  {renderSortButton('assigned_on', 'Assigned On')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'status' ? sort.direction : undefined}>
+                  {renderSortButton('status', 'Status')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'progress' ? sort.direction : undefined}>
+                  {renderSortButton('progress', 'Progress')}
+                </th>
+                <th scope="col" aria-sort={sort?.key === 'remarks' ? sort.direction : undefined}>
+                  {renderSortButton('remarks', 'Remarks')}
+                </th>
+                <th scope="col" className="cell-align-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                [0, 1, 2, 3, 4].map((rowIdx) => (
+                  <tr key={rowIdx} aria-hidden="true">
+                    <td colSpan={14}>
+                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <div className="skeleton-bar" style={{ inlineSize: '1.125rem', blockSize: '1.125rem' }} />
+                        <div className="skeleton-bar" style={{ inlineSize: '4.5rem', blockSize: '1rem' }} />
+                        <div className="skeleton-bar" style={{ inlineSize: '14rem', blockSize: '1rem' }} />
+                        <div className="skeleton-bar" style={{ inlineSize: '7.5rem', blockSize: '1rem' }} />
+                        <div className="skeleton-bar" style={{ inlineSize: '6rem', blockSize: '1rem' }} />
+                        <div className="skeleton-bar" style={{ inlineSize: '6.5rem', blockSize: '1rem' }} />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : sortedTasks.length === 0 ? (
+                <tr>
+                  <td colSpan={14} className="table-empty-cell">
+                    No tasks match your filters. Create a task or reset filters to view all items.
+                  </td>
+                </tr>
+              ) : (
+                sortedTasks.map((task) => {
+                  const daysLeft = computeDaysLeft(task.due_date);
+                  const checked = selectedIds.has(task.id);
+                  return (
+                    <tr key={task.id} className="data-table-row">
+                      <th scope="row" className="table-row-header">
+                        <label className="checkbox-hit-target" aria-label={`Select ${task.title}`}>
+                          <input
+                            type="checkbox"
+                            className="checkbox-input"
+                            checked={checked}
+                            onChange={(e) => toggleRowSelect(task.id, e.target.checked)}
+                          />
+                        </label>
+                      </th>
+                      <td className="font-mono text-accent">{task.task_code}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="task-title-btn"
+                          onClick={() => setDetailTaskId(task.id)}
+                        >
+                          {task.title}
+                        </button>
+                      </td>
+                      <td>{task.assignee_name}</td>
+                      <td>
+                        <span className="badge badge--accent">{task.category}</span>
+                      </td>
+                      <td>
+                        <select
+                          aria-label={`Change priority for ${task.title}`}
+                          className="inline-select"
+                          value={task.priority}
+                          onChange={(e) =>
+                            void handleInlineUpdate(task, { priority: e.target.value }, 'priority')
+                          }
+                        >
+                          {TASK_PRIORITIES.map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{task.department}</td>
+                      <td className="font-mono">{task.due_date || '—'}</td>
+                      <td>{getDaysLeftBadge(daysLeft, task.status)}</td>
+                      <td className="font-mono text-secondary">{task.assigned_on || '—'}</td>
+                      <td>
+                        <select
+                          aria-label={`Change status for ${task.title}`}
+                          className="inline-select"
+                          value={task.status}
+                          onChange={(e) =>
+                            void handleInlineUpdate(task, { status: e.target.value }, 'status')
+                          }
+                        >
+                          {TASK_STATUSES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="font-mono">{task.progress}%</td>
+                      <td>
+                        <span className={task.remarks === 'Closed' ? 'badge badge--success' : 'badge badge--neutral'}>
+                          {task.remarks}
+                        </span>
+                      </td>
+                      <td className="cell-align-end">
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            aria-label={`Edit ${task.title}`}
+                            onClick={() => setFormState({ open: true, mode: 'edit', task })}
+                          >
+                            <Edit3 size={15} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            aria-label={`Delete ${task.title}`}
+                            onClick={() => setDeleteTarget({ type: 'single', task })}
+                          >
+                            <Trash2 size={15} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {/* Live Status & Distribution Analytics Dialog */}
+      <ModalDialog
+        open={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+        title="Task Status & Distribution"
+        subtitle={`Live breakdown across ${analytics.totalTasks} tasks (${month} ${year})`}
+        size="xl"
+        footer={
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setIsAnalyticsOpen(false)}
+          >
+            Close
+          </button>
+        }
+      >
+        <div className="analytics-grid">
+          <section className="surface-card surface-card--compact">
+            <h3 className="card-title" style={{ marginBlockEnd: '0.875rem' }}>
+              Tasks by Status
+            </h3>
+            <div className="meter-stack">
+              {analytics.statusData.map((item) => {
+                const pct =
+                  analytics.totalTasks > 0
+                    ? `${Math.round((item.tasks / analytics.totalTasks) * 100)}%`
+                    : '0%';
+                return (
+                  <div key={item.name} className="meter-row">
+                    <div className="meter-row-head">
+                      <span>{item.name}</span>
+                      <span className="badge badge--neutral font-mono">{item.tasks}</span>
+                    </div>
+                    <div className="meter-track">
+                      <div className="meter-fill" style={{ inlineSize: pct }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="surface-card surface-card--compact">
+            <h3 className="card-title" style={{ marginBlockEnd: '0.875rem' }}>
+              Distribution by Category
+            </h3>
+            <div className="meter-stack">
+              {analytics.categoryData.map((item) => {
+                const pct =
+                  analytics.totalTasks > 0
+                    ? `${Math.round((item.total / analytics.totalTasks) * 100)}%`
+                    : '0%';
+                return (
+                  <div key={item.name} className="meter-row">
+                    <div className="meter-row-head">
+                      <span>{item.name}</span>
+                      <strong className="font-mono">{item.total}</strong>
+                    </div>
+                    <div className="meter-track">
+                      <div className="meter-fill" style={{ inlineSize: pct }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="surface-card surface-card--compact">
+            <h3 className="card-title" style={{ marginBlockEnd: '0.875rem' }}>
+              Distribution by Priority
+            </h3>
+            <div className="meter-stack">
+              {TASK_PRIORITIES.map((label) => {
+                const count = analytics.priorityData.find((p) => p.name === label)?.value ?? 0;
+                const tone =
+                  label === 'Critical'
+                    ? 'danger'
+                    : label === 'Very High'
+                      ? 'urgent'
+                      : label === 'High'
+                        ? 'warning'
+                        : label === 'Medium'
+                          ? 'info'
+                          : 'success';
+                return (
+                  <div
+                    key={label}
+                    className="muted-well"
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <span className={`badge badge--${tone}`}>
+                      <span className="badge-dot" aria-hidden="true" />
+                      <span>{label}</span>
+                    </span>
+                    <strong className="font-mono">{count}</strong>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="surface-card surface-card--compact">
+            <h3 className="card-title" style={{ marginBlockEnd: '0.875rem' }}>
+              Distribution by Department
+            </h3>
+            <div className="meter-stack">
+              {analytics.departmentData.map((item) => {
+                const pct =
+                  analytics.totalTasks > 0
+                    ? `${Math.round((item.total / analytics.totalTasks) * 100)}%`
+                    : '0%';
+                return (
+                  <div key={item.name} className="dept-row">
+                    <span className="dept-label">{item.name}</span>
+                    <div className="meter-track" style={{ flex: 1 }}>
+                      <div className="meter-fill" style={{ inlineSize: pct }} />
+                    </div>
+                    <span className="dept-count font-mono">{item.total}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="surface-card surface-card--compact">
+            <h3 className="card-title" style={{ marginBlockEnd: '0.875rem' }}>
+              Distribution by Remarks
+            </h3>
+            <div className="split-stat-grid">
+              <div className="split-stat-box">
+                <span className="tasks-summary-label">Open Tasks</span>
+                <span className="split-stat-num font-mono">{analytics.openTasks}</span>
+              </div>
+              <div className="split-stat-box">
+                <span className="tasks-summary-label">Closed Tasks</span>
+                <span className="split-stat-num font-mono">{analytics.closedTasks}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="surface-card surface-card--compact">
+            <h3 className="card-title" style={{ marginBlockEnd: '0.875rem' }}>
+              Yearly Performance Breakdown ({year})
+            </h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Month</th>
+                  <th scope="col">Total</th>
+                  <th scope="col">Done</th>
+                  <th scope="col">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.yearlyData.filter((m) => m.total > 0 || m.completed > 0).length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="table-empty-cell">
+                      No tasks recorded for {year}.
+                    </td>
+                  </tr>
+                ) : (
+                  analytics.yearlyData
+                    .filter((m) => m.total > 0 || m.completed > 0)
+                    .map((row) => (
+                      <tr key={row.month}>
+                        <td>{row.month}</td>
+                        <td className="font-mono">{row.total}</td>
+                        <td className="font-mono">{row.completed}</td>
+                        <td className="font-mono">{row.rate}%</td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </ModalDialog>
+
+      {/* Create / Edit Task Modal */}
+      <TaskFormModal
+        key={`${formState.mode}-${formState.task?.id ?? 'new'}-${formState.open ? '1' : '0'}`}
+        open={formState.open}
+        mode={formState.mode}
+        initialTask={formState.task}
+        employees={employees}
+        categories={categories}
+        departments={departments}
+        onClose={() => setFormState({ open: false, mode: 'create', task: null })}
+        onSubmit={handleSaveTask}
+      />
+
+      {/* Task Detail Modal (Subtasks + Comments) */}
+      <TaskDetailModal
+        task={detailTask}
+        companyId={workspace?.currentEmployee?.company_id}
+        currentUser={{
+          id: workspace?.userId,
+          name: workspace?.currentEmployee?.name ?? 'Team Member',
+        }}
+        onClose={() => setDetailTaskId(null)}
+        onEdit={(task) => {
+          setDetailTaskId(null);
+          setFormState({ open: true, mode: 'edit', task });
+        }}
+        onDelete={(task) => setDeleteTarget({ type: 'single', task })}
+        onTaskUpdated={loadWorkspaceAndTasks}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={Boolean(deleteTarget)}
+        title={
+          deleteTarget?.type === 'bulk'
+            ? `Delete ${deleteTarget.ids.length} selected tasks?`
+            : `Delete "${deleteTarget?.task.title ?? ''}"?`
+        }
+        description="This action permanently removes the selected task(s) and their checklist items."
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+      />
+    </div>
+  );
+}
+
+export default function TasksBoard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="surface-card">
+          <p className="card-subtitle">Loading Tasks Board...</p>
+        </div>
+      }
+    >
+      <TasksBoardContent />
+    </Suspense>
   );
 }
